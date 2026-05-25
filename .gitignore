@@ -1,2 +1,11 @@
 __pycache__/
 pagesaves/
+temp/
+*.xlsx
+temp/
+*.ipynb
+*.json
+*.csv
+Export/
+Excel/
+temp/
