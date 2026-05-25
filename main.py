@@ -7,7 +7,7 @@ from location import get_serviceability
 from parser import *
 from db import *
 from products import *
-
+from datetime import datetime
 
 EXCEL_FILE = "Excel/act-jnssav-7544-pincodes.xlsx"
 SHEET_NAME = "Flipkart Grocery"
@@ -34,7 +34,7 @@ def process_single_product_from_pagesave(row):
         print(f"PID not found | ID: {row_id}")
         return row_id, "failed"
 
-    file_path = f"pagesaves/pdp/{pid}_{pincode}.html.gz"
+    file_path = f"pagesaves {datetime.now().strftime('%Y-%m-%d')}/pdp/{pid}_{pincode}.html.gz"
 
     if not os.path.exists(file_path):
         print(f"Pagesave not found | ID: {row_id} | {file_path}")
@@ -45,6 +45,7 @@ def process_single_product_from_pagesave(row):
         "pincode": row.get("pincode"),
         "locality": row.get("locality"),
         "city": row.get("city"),
+        "state": row.get("state"),
         "latitude": row.get("latitude"),
         "longitude": row.get("longitude"),
         "ean_code": row.get("ean_code"),
@@ -125,6 +126,7 @@ def check_and_store_pincodes(pincode_rows):
                     1,
                     location_data.get("formatted_address"),
                     location_data.get("city"),
+                    location_data.get("state"),
                     location_data.get("latitude"),
                     location_data.get("longitude"),
                     location_data.get("ud")
@@ -193,6 +195,7 @@ def build_master_table_data(product_file):
                 "serviceability": location.get("serviceability"),
                 "locality": location.get("locality"),
                 "city": location.get("city"),
+                "state": location.get("state"),
                 "latitude": location.get("latitude"),
                 "longitude": location.get("longitude"),
                 "ean_code": product.get("ean_code"),
@@ -216,6 +219,7 @@ def process_single_product(row):
         "pincode": row.get("pincode"),
         "locality": row.get("locality"),
         "city": row.get("city"),
+        "state": row.get("state"),
         "latitude": row.get("latitude"),
         "longitude": row.get("longitude"),
         "ean_code": row.get("ean_code"),
@@ -383,13 +387,13 @@ def main():
 
     create_database(cursor)
    
-    # create_location_table(cursor) 
+    create_location_table(cursor) 
     
-    # create_master_table(cursor)    # pincode/location table
+    create_master_table(cursor)    # pincode/location table
       
-    # create_table(cursor)            # final product data table
+    create_table(cursor)            # final product data table
     
-    # pincode_rows = read_pincodes_from_excel(EXCEL_FILE)
+    pincode_rows = read_pincodes_from_excel(EXCEL_FILE)
     # failed_rows = fetch_failed_pincodes(cursor)
 
     cursor.close()
@@ -403,9 +407,9 @@ def main():
 
     # check_and_store_pincodes(failed_rows)
 
-    # # check_and_store_pincodes(pincode_rows)
+    check_and_store_pincodes(pincode_rows)
 
-    # build_master_table_data(PRODUCT_FILE)
+    build_master_table_data(PRODUCT_FILE)
     # print("Master table built successfully")
 
     process_pending_product_urls(batch_size=200)

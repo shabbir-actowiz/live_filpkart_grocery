@@ -4,7 +4,7 @@ import json
 from db import *
 from curl_cffi import requests
 import gzip
-
+from datetime import datetime
 BATCH_SIZE = 100
 
 
@@ -41,8 +41,8 @@ params = {
 def get_product(product_urls, location_data):
     batch=[]
 
-    os.makedirs('pagesaves/pdp', exist_ok=True)
-    os.makedirs('pagesaves/parsed', exist_ok=True)
+    os.makedirs(f'pagesaves {datetime.now().strftime("%Y-%m-%d")}/pdp', exist_ok=True)
+    os.makedirs(f'pagesaves {datetime.now().strftime("%Y-%m-%d")}/parsed', exist_ok=True)
 
     for product_url in product_urls:
         cookies = {
@@ -87,7 +87,7 @@ def get_product(product_urls, location_data):
             impersonate='chrome116'
         )
         pid=product_url.split('pid=')[1].split('&')[0]
-        with gzip.open(f'pagesaves/pdp/{pid}_{location_data["pincode"]}.html.gz', 'wt', encoding='utf-8') as file:
+        with gzip.open(f'pagesaves {datetime.now().strftime("%Y-%m-%d")}/pdp/{pid}_{location_data["pincode"]}.html.gz', 'wt', encoding='utf-8') as file:
                     json.dump(response.json(), file, indent=2,ensure_ascii=False)
 
         if response.status_code == 200:
@@ -102,7 +102,7 @@ def get_product(product_urls, location_data):
                 print(f"Parser failed for: {product_url}")
                 return 'not found'
 
-            # with gzip.open(f'pagesaves/parsed/{pid}_{location_data["pincode"]}.html.gz', 'wt', encoding='utf-8') as file:
+            # with gzip.open(f'pagesaves {datetime.now().strftime("%Y-%m-%d")}/parsed/{pid}_{location_data["pincode"]}.html.gz', 'wt', encoding='utf-8') as file:
             #         json.dump(cleaned_data, file, indent=2, ensure_ascii=False)
 
             if len(batch)>=BATCH_SIZE:

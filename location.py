@@ -3,7 +3,7 @@ import json
 import os
 import gzip
 from update import *
-
+from datetime import datetime
 headers = {
     'Accept': '*/*',
     'Accept-Language': 'en-GB,en-US;q=0.9,en;q=0.8',
@@ -35,7 +35,7 @@ json_data = {
 
 def get_serviceability(pincode):
 
-    os.makedirs('pagesaves/serviceability', exist_ok=True)
+    os.makedirs(f'pagesaves {datetime.now().strftime("%Y-%m-%d")}/serviceability', exist_ok=True)
 
     json_data['locationContext']['pincode'] = str(pincode)
 
@@ -47,7 +47,7 @@ def get_serviceability(pincode):
     impersonate='chrome116'
     )
     
-    with gzip.open(f'pagesaves/serviceability/{pincode}.html.gz', 'wt', encoding='utf-8') as f:
+    with gzip.open(f'pagesaves {datetime.now().strftime("%Y-%m-%d")}/serviceability/{pincode}.html.gz', 'wt', encoding='utf-8') as f:
             json.dump(response.json(), f, indent=2,ensure_ascii=False)
 
     if response.status_code == 200:
@@ -73,7 +73,7 @@ def get_serviceability(pincode):
     
 def get_lat_long_from_pincode(pincode, country="IN"):
     
-    os.makedirs('pagesaves/location_data', exist_ok=True)
+    os.makedirs(f'pagesaves {datetime.now().strftime("%Y-%m-%d")}/location_data', exist_ok=True)
     api_key = "AIzaSyAtKsoYaqKOXMV00f9qLDAgbYYevlxAGsQ"  # Replace with your actual API key
     
     # Format the address with pincode and country
@@ -96,14 +96,15 @@ def get_lat_long_from_pincode(pincode, country="IN"):
 
         location = data['results'][0]['geometry']['location']
 
-        with gzip.open(f'pagesaves/location_data/{pincode}.html.gz', 'wt',encoding='utf-8') as f:
+        with gzip.open(f'pagesaves {datetime.now().strftime("%Y-%m-%d")}/location_data/{pincode}.html.gz', 'wt',encoding='utf-8') as f:
             json.dump(data, f, indent=2,ensure_ascii=False)
-
+        
         return {
             'latitude': location['lat'],
             'longitude': location['lng'],
             'formatted_address': data['results'][0]['formatted_address'],
             'city': data.get('results', [{}])[0].get('address_components', [])[1].get('long_name'),
+            'state': data.get('results', [{}])[0].get('address_components', [])[2].get('long_name'),
             'pincode': pincode
         }
     

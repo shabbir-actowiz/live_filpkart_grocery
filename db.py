@@ -10,7 +10,7 @@ DB_CONFIG = {
     'password': 'actowiz',
 }
 location_table=f"locations{datetime.now().strftime('%Y_%m_%d')}"
-DB_NAME = 'Flipkart_Grocery_New'
+DB_NAME = 'Flipkart_Grocery'
 TABLE_NAME = f"products_{datetime.now().strftime('%Y_%m_%d')}"
 master_table_name=f"master_table_{datetime.now().strftime('%Y_%m_%d')}"
 # ================================================
@@ -38,6 +38,7 @@ def create_table(cursor):
             pincode INT,
             locality VARCHAR(255),
             city VARCHAR(255),
+            state VARCHAR(255),
             url text,
             product_name text,
             brand VARCHAR(255),
@@ -74,6 +75,7 @@ def insert_data(json_dict):
             pincode,
             locality,
             city,
+            state,
             url,
             product_name,
             brand,
@@ -82,7 +84,7 @@ def insert_data(json_dict):
             ean_code,
             pls,
             product_data
-        ) VALUES (%s, %s, %s, %s, %s, %s,%s,%s, %s, %s, %s,%s)
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
 
         values = (
@@ -90,6 +92,7 @@ def insert_data(json_dict):
             json_dict.get('pincode'),
             json_dict.get('locality'),
             json_dict.get('city'),
+            json_dict.get('state'),
             json_dict.get('url'),
             json_dict.get('product_name'),
             json_dict.get('brand'),
@@ -130,6 +133,7 @@ def insert_multiple_data(json_list):
             pincode,
             locality,
             city,
+            state,
             url,
             product_name,
             brand,
@@ -138,7 +142,7 @@ def insert_multiple_data(json_list):
             ean_code,
             pls,
             product_data
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
 
         values_list = []
@@ -149,6 +153,7 @@ def insert_multiple_data(json_list):
                 json_dict.get('pincode'),
                 json_dict.get('locality'),
                 json_dict.get('city'),
+                json_dict.get('state'),
                 json_dict.get('url'),
                 json_dict.get('product_name'),
                 json_dict.get('brand'),
@@ -187,6 +192,7 @@ def create_location_table(cursor):
         serviceability BOOLEAN DEFAULT FALSE,
         locality VARCHAR(500),
         city VARCHAR(255),
+        state VARCHAR(255),
         latitude DECIMAL(12, 8),
         longitude DECIMAL(12, 8),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -205,22 +211,25 @@ def insert_pincode_location(
     serviceability,
     locality=None,
     city=None,
+    state=None,
     latitude=None,
     longitude=None,
-    ud=None,
+    ud=None
+    
 ):
     query = f"""
     INSERT INTO {location_table} (
         static_location, pincode, status, serviceability,
-        locality, city, latitude, longitude, ud
+        locality, city, state, latitude, longitude, ud
     )
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     ON DUPLICATE KEY UPDATE
         static_location = VALUES(static_location),
         status = VALUES(status),
         serviceability = VALUES(serviceability),
         locality = VALUES(locality),
         city = VALUES(city),
+        state = VALUES(state),
         latitude = VALUES(latitude),
         longitude = VALUES(longitude),
         ud = VALUES(ud)
@@ -228,7 +237,7 @@ def insert_pincode_location(
 
     values = (
         static_location, pincode, status, serviceability,
-        locality, city, latitude, longitude, ud
+        locality, city, state, latitude, longitude, ud
     )
 
     cursor.execute(query, values)
@@ -244,6 +253,7 @@ def get_serviceable_locations(cursor):
         serviceability,
         locality,
         city,
+        state,
         latitude,
         longitude
     FROM {location_table}
@@ -266,7 +276,7 @@ def create_master_table(cursor):
         city VARCHAR(255),
         latitude DECIMAL(12, 8),
         longitude DECIMAL(12, 8),
-
+        state VARCHAR(255),
         ean_code VARCHAR(100),
         product_url text,
         scraping_status VARCHAR(50) DEFAULT 'pending',
@@ -286,10 +296,10 @@ def insert_master_data(cursor, rows):
    INSERT INTO {master_table_name} (
     ud,
     static_location, pincode, status, serviceability,
-    locality, city, latitude, longitude,
+    locality, city, state, latitude, longitude,
     ean_code, product_url
 )
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
 
     values = []
 
@@ -302,6 +312,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
             row.get("serviceability"),
             row.get("locality"),
             row.get("city"),
+            row.get("state"),
             row.get("latitude"),
             row.get("longitude"),
             row.get("ean_code"),
@@ -320,6 +331,7 @@ def fetch_pending_master_rows(cursor, limit=50):
         pincode,
         locality,
         city,
+        state,
         latitude,
         longitude,
         ean_code,
