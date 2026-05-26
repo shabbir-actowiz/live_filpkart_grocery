@@ -35,7 +35,7 @@ json_data = {
 
 def get_serviceability(pincode):
 
-    os.makedirs(f'pagesaves {datetime.now().strftime("%Y-%m-%d")}/serviceability', exist_ok=True)
+    os.makedirs(f'pagesaves/pagesaves {datetime.now().strftime("%Y-%m-%d")}/serviceability', exist_ok=True)
 
     json_data['locationContext']['pincode'] = str(pincode)
 
@@ -47,7 +47,7 @@ def get_serviceability(pincode):
     impersonate='chrome116'
     )
     
-    with gzip.open(f'pagesaves {datetime.now().strftime("%Y-%m-%d")}/serviceability/{pincode}.html.gz', 'wt', encoding='utf-8') as f:
+    with gzip.open(f'pagesaves/pagesaves {datetime.now().strftime("%Y-%m-%d")}/serviceability/{pincode}.html.gz', 'wt', encoding='utf-8') as f:
             json.dump(response.json(), f, indent=2,ensure_ascii=False)
 
     if response.status_code == 200:
@@ -59,6 +59,9 @@ def get_serviceability(pincode):
             print(f"Pincode {pincode} is serviceable.")
             
             location_data=get_lat_long_from_pincode(pincode)
+            if location_data == 'not found':
+                print(f"Location data not found for pincode {pincode}.")
+                return None
             ud=get_update_ud(location_data)
             location_data['ud']=ud
 
@@ -71,9 +74,9 @@ def get_serviceability(pincode):
         print(f"Failed to check serviceability for pincode {pincode}. Status code: {response.status_code}")
         return 'failed'
     
-def get_lat_long_from_pincode(pincode, country="IN"):
+def get_lat_long_from_pincode(pincode, country="India"):
     
-    os.makedirs(f'pagesaves {datetime.now().strftime("%Y-%m-%d")}/location_data', exist_ok=True)
+    os.makedirs(f'pagesaves/pagesaves {datetime.now().strftime("%Y-%m-%d")}/location_data', exist_ok=True)
     api_key = "AIzaSyAtKsoYaqKOXMV00f9qLDAgbYYevlxAGsQ"  # Replace with your actual API key
     
     # Format the address with pincode and country
@@ -82,7 +85,8 @@ def get_lat_long_from_pincode(pincode, country="IN"):
     params = {
         'address': address,
         'key': api_key,
-        'components': f'postal_code:{pincode}'  # Optional: restrict to postal code
+        'components':f"country:IN|postal_code:{pincode}", # Optional: restrict to postal code
+        "region": "in"
     }
     
     response = requests.get(
@@ -91,22 +95,95 @@ def get_lat_long_from_pincode(pincode, country="IN"):
     )
 
     data = response.json()
+
+    if not data['results']:
+        return 'not found'
     
     if data['status'] == 'OK':
 
         location = data['results'][0]['geometry']['location']
 
-        with gzip.open(f'pagesaves {datetime.now().strftime("%Y-%m-%d")}/location_data/{pincode}.html.gz', 'wt',encoding='utf-8') as f:
+        with gzip.open(f'pagesaves/pagesaves {datetime.now().strftime("%Y-%m-%d")}/location_data/{pincode}.html.gz', 'wt',encoding='utf-8') as f:
             json.dump(data, f, indent=2,ensure_ascii=False)
+        result = data["results"][0]
+        address_components = result["address_components"]
+        city = None
+        state = None
+        pincode_extracted = None
+        formatted_address = result.get("formatted_address")
+        for component in address_components:
+            types = component["types"]
+            
+            if "locality" in types and not city:                    # City / Town
+                city = component["long_name"]
+            
+            elif "administrative_area_level_1" in types:            # State
+                state = component["long_name"]
+            
+            elif "postal_code" in types:                            # Pincode
+                pincode_extracted = component["long_name"]
+
+        # Fallbacks
+        if not city:
+            # Try administrative_area_level_2 or sublocality as city
+            for component in address_components:
+                if "administrative_area_level_2" in component["types"]:
+                    city = component["long_name"]
+                    break
         
+        if not city or not state :
+            city,state,formatted_address = get_city_state_from_lat_lng(location['lat'], location['lng'],api_key)
+
         return {
             'latitude': location['lat'],
             'longitude': location['lng'],
-            'formatted_address': data['results'][0]['formatted_address'],
-            'city': data.get('results', [{}])[0].get('address_components', [])[1].get('long_name'),
-            'state': data.get('results', [{}])[0].get('address_components', [])[2].get('long_name'),
-            'pincode': pincode
+            'formatted_address': formatted_address,
+            'city': city,
+            'state': state,
+            'pincode': pincode_extracted
         }
     
     else:
         return {'error': data['status']}
+
+def get_city_state_from_lat_lng(lat, lng, api_key):
+    os.makedirs(f'pagesaves/pagesaves {datetime.now().strftime("%Y-%m-%d")}/reverse_geocode', exist_ok=True)
+    
+    reverse_params = {
+        "latlng": f"{lat},{lng}",
+        "key": api_key
+    }
+
+    reverse_resp = requests.get(
+        "https://maps.googleapis.com/maps/api/geocode/json",
+        params=reverse_params
+    )
+    with gzip.open(f'pagesaves/pagesaves {datetime.now().strftime("%Y-%m-%d")}/reverse_geocode/{lat}_{lng}.html.gz', 'wt', encoding='utf-8') as f:
+        json.dump(reverse_resp.json(), f, indent=2, ensure_ascii=False)
+    reverse_data = reverse_resp.json()
+
+
+    for result in reverse_data.get("results", []):
+
+        for comp in result.get("address_components", []):
+
+            types = comp.get("types", [])
+
+            # State
+            if "administrative_area_level_1" in types:
+                state = comp.get("long_name")
+
+            # City
+            if "locality" in types :
+                city = comp.get("long_name")
+
+            # Backup city
+            if (
+                "administrative_area_level_2" in types
+                and not city
+            ):
+                city = comp.get("long_name")
+
+    formatted_address = reverse_data.get("plus_code",{}).get("compound_code")
+
+    return city, state, formatted_address

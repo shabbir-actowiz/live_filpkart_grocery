@@ -27,7 +27,7 @@ headers = {
 }
 def get_update_ud(address_info):
 
-    os.makedirs(f'pagesaves {datetime.now().strftime("%Y-%m-%d")}/update', exist_ok=True)
+    os.makedirs(f'pagesaves/pagesaves {datetime.now().strftime("%Y-%m-%d")}/update', exist_ok=True)
 
     json_data = {
         'geoLocation': {
@@ -52,7 +52,7 @@ def get_update_ud(address_info):
             try:
                 ud=cookie.split('ud=')[1].split(';')[0]
                 
-                with gzip.open(f'pagesaves {datetime.now().strftime("%Y-%m-%d")}/update/{address_info.get("pincode")}.html.gz', 'wt', encoding='utf-8') as f:
+                with gzip.open(f'pagesaves/pagesaves {datetime.now().strftime("%Y-%m-%d")}/update/{address_info.get("pincode")}.html.gz', 'wt', encoding='utf-8') as f:
                     json.dump(headers_dict, f, indent=2, ensure_ascii=False)
                 return ud
             except IndexError:

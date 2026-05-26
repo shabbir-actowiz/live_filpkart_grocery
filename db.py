@@ -9,10 +9,13 @@ DB_CONFIG = {
     'user': 'root',
     'password': 'actowiz',
 }
-location_table=f"locations{datetime.now().strftime('%Y_%m_%d')}"
+location_table=f"locations_{datetime.now().strftime('%Y_%m_%d')}"
+# location_table=f"locations2026_05_25"
 DB_NAME = 'Flipkart_Grocery'
 TABLE_NAME = f"products_{datetime.now().strftime('%Y_%m_%d')}"
+# TABLE_NAME = f"products_2026_05_25"
 master_table_name=f"master_table_{datetime.now().strftime('%Y_%m_%d')}"
+# master_table_name=f"master_table_2026_05_25"
 # ================================================
 
 def get_connection():

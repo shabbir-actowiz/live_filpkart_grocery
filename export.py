@@ -20,13 +20,14 @@ con = pymysql.connect(
    host="localhost",
         user="root",
         password="actowiz",
-        database="flipkart_grocery_new"
+        database="flipkart_grocery"
 )
 
 # create cursor, used to execute commands
 qr = f"""select id,
         pincode,
         city,
+        state,
         locality,
         sku,
         ean_code,
@@ -34,7 +35,7 @@ qr = f"""select id,
         product_name,
         brand,
         stock_avaliblity_status
-    from products_2026_05_20 """
+    from products_2026_05_26 """
 df = pd.read_sql(qr, con)
 
 # Drop column by name

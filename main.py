@@ -9,10 +9,22 @@ from db import *
 from products import *
 from datetime import datetime
 
+
 EXCEL_FILE = "Excel/act-jnssav-7544-pincodes.xlsx"
 SHEET_NAME = "Flipkart Grocery"
 
-PRODUCT_FILE = "Excel/act-jnssav-7544-sku-based-data-collection-from-q-commerce-platforms-weekly.xlsx"
+PRODUCT_FILE = "Excel/Mapping Sheet.xlsx"
+PRODUCT_LOCATION_FILE = "Excel/Flipkart Product vise locations.xlsx"
+
+
+def normalize_text(value):
+    return (
+        str(value)
+        .strip()
+        .lower()
+        .replace("&", "and")
+    )
+
 
 def get_pid_from_url(product_url):
     try:
@@ -22,6 +34,7 @@ def get_pid_from_url(product_url):
         pass
 
     return None
+
 
 def process_single_product_from_pagesave(row):
     row_id = row["id"]
@@ -49,7 +62,7 @@ def process_single_product_from_pagesave(row):
         "latitude": row.get("latitude"),
         "longitude": row.get("longitude"),
         "ean_code": row.get("ean_code"),
-        'ud': row.get('ud'),
+        "ud": row.get("ud"),
     }
 
     try:
@@ -63,10 +76,11 @@ def process_single_product_from_pagesave(row):
             location_data,
             product_url
         )
-        if cleaned_data == 'not found':
+
+        if cleaned_data == "not found":
             print(f"Parser found page but product not found | ID: {row_id}")
             return row_id, "not found"
-        
+
         elif not cleaned_data:
             print(f"Parser failed | ID: {row_id}")
             return row_id, "failed"
@@ -80,6 +94,7 @@ def process_single_product_from_pagesave(row):
         print(f"Failed pagesave parse | ID: {row_id} | Error: {e}")
         return row_id, "failed"
 
+
 def read_pincodes_from_excel(file_path):
     df = pd.read_excel(file_path, sheet_name=SHEET_NAME)
     df.columns = df.columns.str.strip().str.lower()
@@ -90,7 +105,9 @@ def read_pincodes_from_excel(file_path):
             raise Exception(f"Missing required column: {col}")
 
     df = df[required_columns].dropna(subset=["pincode"])
+    df["location"] = df["location"].astype(str).str.strip()
     df["pincode"] = df["pincode"].astype(int)
+
     df = df.drop_duplicates(subset=["pincode"])
 
     return df.to_dict("records")
@@ -111,8 +128,17 @@ def check_and_store_pincodes(pincode_rows):
 
             if location_data == "failed":
                 insert_pincode_location(
-                    cursor, static_location, pincode, "failed",
-                    0, None, None, None, None
+                    cursor,
+                    static_location,
+                    pincode,
+                    "failed",
+                    0,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None
                 )
                 con.commit()
                 continue
@@ -135,8 +161,17 @@ def check_and_store_pincodes(pincode_rows):
 
             else:
                 insert_pincode_location(
-                    cursor, static_location, pincode, "done",
-                    0, None, None, None, None, None
+                    cursor,
+                    static_location,
+                    pincode,
+                    "done",
+                    0,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None
                 )
                 print(f"Not serviceable: {pincode}")
 
@@ -144,8 +179,17 @@ def check_and_store_pincodes(pincode_rows):
 
         except Exception as e:
             insert_pincode_location(
-                cursor, static_location, pincode, "failed",
-                0, None, None, None, None, None
+                cursor,
+                static_location,
+                pincode,
+                "failed",
+                0,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None
             )
             con.commit()
             print(f"Failed: {pincode} | {e}")
@@ -155,18 +199,32 @@ def check_and_store_pincodes(pincode_rows):
 
 
 def read_grocery_products_from_excel(file_path):
-    df = pd.read_excel(file_path, sheet_name=1, header=1)
+    df = pd.read_excel(
+        file_path,
+        sheet_name="Flipkart Minutes and Grocery",
+        header=1
+    )
 
-    df = df.iloc[:, [0, 3]]
-    df.columns = ["ean_code", "product_url"]
+    df = df.iloc[:, [0, 1, 3]]
+    df.columns = ["ean_code", "product_title", "product_url"]
 
-    df = df.dropna(subset=["product_url"])
+    # product title and product url are required
+    df = df.dropna(subset=["product_title", "product_url"])
 
+    df["product_title"] = df["product_title"].astype(str).str.strip()
     df["product_url"] = df["product_url"].astype(str).str.strip()
-    df["ean_code"] = df["ean_code"].astype(str).str.strip()
 
+    # EAN is optional, so blank EAN becomes N/A
+    df["ean_code"] = df["ean_code"].fillna("N/A").astype(str).str.strip()
+    df["ean_code"] = df["ean_code"].replace(
+        ["", "nan", "NaN", "None", "NONE"],
+        "N/A"
+    )
+
+    # product_url N/A / blank should not go into master
     df = df[df["product_url"].str.upper() != "N/A"]
     df = df[df["product_url"].str.startswith("http")]
+
     df = df.drop_duplicates(subset=["product_url"])
 
     products = df.to_dict("records")
@@ -175,9 +233,36 @@ def read_grocery_products_from_excel(file_path):
 
     return products
 
+def read_product_city_mapping(file_path):
+    df = pd.read_excel(file_path)
+    df.columns = df.columns.str.strip().str.lower()
 
-def build_master_table_data(product_file):
+    required_columns = ["product_title", "city"]
+    for col in required_columns:
+        if col not in df.columns:
+            raise Exception(f"Missing required column in product location file: {col}")
+
+    df = df.dropna(subset=["product_title", "city"])
+
+    mapping = {}
+
+    for _, row in df.iterrows():
+        product_title = normalize_text(row["product_title"])
+        city = normalize_text(row["city"])
+
+        if product_title not in mapping:
+            mapping[product_title] = set()
+
+        mapping[product_title].add(city)
+
+    print(f"Product-city mapping loaded: {len(mapping)} products")
+
+    return mapping
+
+
+def build_master_table_data(product_file, product_location_file):
     products = read_grocery_products_from_excel(product_file)
+    product_city_mapping = read_product_city_mapping(product_location_file)
 
     con = get_connection()
     cursor = con.cursor(dictionary=True)
@@ -185,9 +270,23 @@ def build_master_table_data(product_file):
     serviceable_locations = get_serviceable_locations(cursor)
 
     master_rows = []
+    skipped_products = []
 
-    for location in serviceable_locations:
-        for product in products:
+    for product in products:
+        product_title_key = normalize_text(product.get("product_title"))
+
+        allowed_cities = product_city_mapping.get(product_title_key)
+
+        if not allowed_cities:
+            skipped_products.append(product.get("product_title"))
+            continue
+
+        for location in serviceable_locations:
+            location_city = normalize_text(location.get("static_location"))
+
+            if location_city not in allowed_cities:
+                continue
+
             master_rows.append({
                 "static_location": location.get("static_location"),
                 "pincode": location.get("pincode"),
@@ -203,11 +302,19 @@ def build_master_table_data(product_file):
                 "ud": location.get("ud")
             })
 
-    insert_master_data(cursor, master_rows)
+    if master_rows:
+        insert_master_data(cursor, master_rows)
 
     con.commit()
     cursor.close()
     con.close()
+
+    print(f"Master rows inserted: {len(master_rows)}")
+
+    if skipped_products:
+        print("Skipped products because no city mapping found:")
+        for product in skipped_products:
+            print(product)
 
 
 def process_single_product(row):
@@ -223,18 +330,21 @@ def process_single_product(row):
         "latitude": row.get("latitude"),
         "longitude": row.get("longitude"),
         "ean_code": row.get("ean_code"),
-        'ud': row.get('ud'),
+        "ud": row.get("ud"),
     }
 
     print(f"Processing ID: {row_id} | Pincode: {row.get('pincode')}")
 
     try:
         result = get_product([product_url], location_data)
-        if result == 'not found':
+
+        if result == "not found":
             print(f"Product not found | ID: {row_id}")
             return row_id, "not found"
+
         elif result:
             return row_id, "done"
+
         else:
             return row_id, "failed"
 
@@ -244,15 +354,10 @@ def process_single_product(row):
 
 
 def process_pending_product_urls(batch_size=100, max_workers=50):
-    # con = get_connection()
-    # cursor = con.cursor(dictionary=True)
-    i=0
     while True:
-        # if i>=4:
-        #     break
-        # i+=1
         con = get_connection()
         cursor = con.cursor(dictionary=True)
+
         rows = fetch_pending_master_rows(cursor, batch_size)
 
         if not rows:
@@ -272,10 +377,10 @@ def process_pending_product_urls(batch_size=100, max_workers=50):
         done_ids = []
         failed_ids = []
         not_found_ids = []
+
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = [
                 executor.submit(process_single_product, row)
-                # executor.submit(process_single_product_from_pagesave, row)
                 for row in rows
             ]
 
@@ -294,8 +399,10 @@ def process_pending_product_urls(batch_size=100, max_workers=50):
 
         if done_ids:
             update_master_rows_status(status_cursor, done_ids, "done")
+
         if not_found_ids:
             update_master_rows_status(status_cursor, not_found_ids, "not found")
+
         if failed_ids:
             update_master_rows_status(status_cursor, failed_ids, "failed")
 
@@ -303,9 +410,11 @@ def process_pending_product_urls(batch_size=100, max_workers=50):
         status_cursor.close()
         status_con.close()
 
-        print(f"Batch completed | Done: {len(done_ids)} | Failed: {len(failed_ids)} | Not Found: {len(not_found_ids)}")
+        print(
+            f"Batch completed | Done: {len(done_ids)} | "
+            f"Failed: {len(failed_ids)} | Not Found: {len(not_found_ids)}"
+        )
 
-# ===========================
 
 def process_pending_product_urls_from_pagesaves(batch_size=100, max_workers=10):
     while True:
@@ -331,6 +440,7 @@ def process_pending_product_urls_from_pagesaves(batch_size=100, max_workers=10):
         done_ids = []
         failed_ids = []
         not_found_ids = []
+
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = [
                 executor.submit(process_single_product_from_pagesave, row)
@@ -363,56 +473,48 @@ def process_pending_product_urls_from_pagesaves(batch_size=100, max_workers=10):
         status_cursor.close()
         status_con.close()
 
-        print(f"Batch completed | Done: {len(done_ids)} | Failed: {len(failed_ids)} | Not Found: {len(not_found_ids)}")
+        print(
+            f"Batch completed | Done: {len(done_ids)} | "
+            f"Failed: {len(failed_ids)} | Not Found: {len(not_found_ids)}"
+        )
 
-
-# ============================
 
 def main():
-    # con = get_connection()
-    # cursor = con.cursor()
-
-    # create_database(cursor)
-    # create_table(cursor)
-    # cursor.close()
-    # con.close()
-
-    # # process_pending_product_urls_from_pagesaves(
-    # #     batch_size=100,
-    # #     max_workers=10
-    # # )
-    # -------------------------
     con = get_connection()
     cursor = con.cursor(dictionary=True)
 
     create_database(cursor)
-   
-    create_location_table(cursor) 
-    
-    create_master_table(cursor)    # pincode/location table
-      
-    create_table(cursor)            # final product data table
-    
-    pincode_rows = read_pincodes_from_excel(EXCEL_FILE)
-    # failed_rows = fetch_failed_pincodes(cursor)
+    create_location_table(cursor)
+    create_master_table(cursor)
+    create_table(cursor)
 
-    cursor.close()
+    # pincode_rows = read_pincodes_from_excel(EXCEL_FILE)
+
+    # failed_rows = fetch_failed_pincodes(cursor)
+    cursor.close() 
     con.close()
 
-    # if not failed_rows:
-    #     print("No failed pincodes found")
-    #     return
-
-    # print(f"Retrying failed pincodes: {len(failed_rows)}")
-
+    # if not failed_rows: 
+    #     print("No failed pincodes found") 
+    #     return  
+    # print(f"Retrying failed pincodes: {len(failed_rows)}") 
     # check_and_store_pincodes(failed_rows)
 
-    check_and_store_pincodes(pincode_rows)
+    # check_and_store_pincodes(pincode_rows)
+    print('serviceability check completed')
+    # build_master_table_data(
+    #     PRODUCT_FILE,
+    #     PRODUCT_LOCATION_FILE
+    # )
 
-    build_master_table_data(PRODUCT_FILE)
     # print("Master table built successfully")
 
-    process_pending_product_urls(batch_size=200)
+    # Start product crawling after master table is ready.
+    process_pending_product_urls(batch_size=200, max_workers=100)
+
+    # Use this only when parsing saved pages.
+    # process_pending_product_urls_from_pagesaves(batch_size=100, max_workers=10)
+
 
 if __name__ == "__main__":
     main()
