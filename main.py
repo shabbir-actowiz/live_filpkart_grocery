@@ -489,28 +489,28 @@ def main():
     create_table(cursor)
 
     # pincode_rows = read_pincodes_from_excel(EXCEL_FILE)
+    # check_and_store_pincodes(pincode_rows)
 
     # failed_rows = fetch_failed_pincodes(cursor)
-    cursor.close() 
-    con.close()
-
     # if not failed_rows: 
     #     print("No failed pincodes found") 
     #     return  
     # print(f"Retrying failed pincodes: {len(failed_rows)}") 
     # check_and_store_pincodes(failed_rows)
 
-    # check_and_store_pincodes(pincode_rows)
+    cursor.close() 
+    con.close()
+
     print('serviceability check completed')
     # build_master_table_data(
     #     PRODUCT_FILE,
     #     PRODUCT_LOCATION_FILE
     # )
 
-    # print("Master table built successfully")
+    print("Master table built successfully")
 
     # Start product crawling after master table is ready.
-    process_pending_product_urls(batch_size=200, max_workers=100)
+    process_pending_product_urls(batch_size=200, max_workers=25)
 
     # Use this only when parsing saved pages.
     # process_pending_product_urls_from_pagesaves(batch_size=100, max_workers=10)

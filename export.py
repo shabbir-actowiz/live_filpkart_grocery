@@ -35,14 +35,25 @@ qr = f"""select id,
         product_name,
         brand,
         stock_avaliblity_status
-    from products_2026_05_26 """
+        from products_2026_06_09
+        WHERE pincode IN (
+        SELECT pincode
+        FROM products_2026_06_09
+        GROUP BY pincode
+        HAVING SUM(
+            CASE 
+                WHEN LOWER(TRIM(stock_avaliblity_status)) = 'yes'
+                THEN 1 ELSE 0 
+            END
+        ) >= 1
+    ); """
 df = pd.read_sql(qr, con)
 
 # Drop column by name
 # df.drop(columns=['id'], inplace=True)   # Replace 'column_name' with actual column name
 
 # Add new columns
-df.insert(9, 'platform', "Flipkart Grocery")
+df.insert(10, 'platform', "Flipkart Grocery")
 df['Scrape_date'] = scrape_date
     
 # Add serial number column
