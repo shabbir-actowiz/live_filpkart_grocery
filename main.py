@@ -118,7 +118,7 @@ def check_and_store_pincodes(pincode_rows):
     cursor = con.cursor(dictionary=True)
 
     for row in pincode_rows:
-        static_location = row["location"]
+        static_location = row["static_location"]
         pincode = row["pincode"]
 
         print(f"Checking serviceability: {pincode}")
@@ -127,22 +127,23 @@ def check_and_store_pincodes(pincode_rows):
             location_data = get_serviceability(pincode)
 
             if location_data == "failed":
-                insert_pincode_location(
-                    cursor,
-                    static_location,
-                    pincode,
-                    "failed",
-                    0,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None
-                )
+                # insert_pincode_location(
+                #     cursor,
+                #     static_location,
+                #     pincode,
+                #     "failed",
+                #     0,
+                #     None,
+                #     None,
+                #     None,
+                #     None,
+                #     None,
+                #     None
+                # )
+                # 
+                mark_pincode_as_failed(cursor, pincode)
                 con.commit()
                 continue
-
             if location_data and not location_data.get("error"):
                 insert_pincode_location(
                     cursor,
@@ -158,7 +159,7 @@ def check_and_store_pincodes(pincode_rows):
                     location_data.get("ud")
                 )
                 print(f"Serviceable: {pincode}")
-
+                mark_pincode_as_done(cursor, pincode)
             else:
                 insert_pincode_location(
                     cursor,
@@ -174,23 +175,24 @@ def check_and_store_pincodes(pincode_rows):
                     None
                 )
                 print(f"Not serviceable: {pincode}")
-
+                mark_pincode_as_done(cursor, pincode)
             con.commit()
 
         except Exception as e:
-            insert_pincode_location(
-                cursor,
-                static_location,
-                pincode,
-                "failed",
-                0,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None
-            )
+            # insert_pincode_location(
+            #     cursor,
+            #     static_location,
+            #     pincode,
+            #     "failed",
+            #     0,
+            #     None,
+            #     None,
+            #     None,
+            #     None,
+            #     None,
+            #     None
+            # )
+            mark_pincode_as_failed(cursor, pincode)
             con.commit()
             print(f"Failed: {pincode} | {e}")
 
@@ -488,9 +490,18 @@ def main():
     create_master_table(cursor)
     create_table(cursor)
 
-    # pincode_rows = read_pincodes_from_excel(EXCEL_FILE)
-    # check_and_store_pincodes(pincode_rows)
+    pending_pincodes = fetch_pending_pincodes(cursor)
+    check_and_store_pincodes(pending_pincodes)
 
+    for i in range(3):  # Retry up to 3 times for failed pincodes
+        print(f"Retry attempt {i + 1} for failed pincodes")
+        mark_failed_pincode_as_pending(cursor)
+        con.commit()
+        pending_pincodes = fetch_pending_pincodes(cursor)
+        if not pending_pincodes:
+            print("No more failed pincodes to retry.")
+            break
+        check_and_store_pincodes(pending_pincodes)
     # failed_rows = fetch_failed_pincodes(cursor)
     # if not failed_rows: 
     #     print("No failed pincodes found") 
@@ -498,20 +509,25 @@ def main():
     # print(f"Retrying failed pincodes: {len(failed_rows)}") 
     # check_and_store_pincodes(failed_rows)
 
-    cursor.close() 
-    con.close()
+    
 
     print('serviceability check completed')
-    # build_master_table_data(
-    #     PRODUCT_FILE,
-    #     PRODUCT_LOCATION_FILE
-    # )
+    build_master_table_data(
+        PRODUCT_FILE,
+        PRODUCT_LOCATION_FILE
+    )
 
     print("Master table built successfully")
 
     # Start product crawling after master table is ready.
-    process_pending_product_urls(batch_size=200, max_workers=25)
-
+    for i in range(3):  # Retry up to 3 times for failed products
+        print(f"Retry attempt {i + 1} for failed products")
+        process_pending_product_urls(batch_size=200, max_workers=20)
+        if i < 2:
+            mark_failed_master_rows_as_pending(cursor)
+        con.commit()
+    cursor.close() 
+    con.close()
     # Use this only when parsing saved pages.
     # process_pending_product_urls_from_pagesaves(batch_size=100, max_workers=10)
 

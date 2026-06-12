@@ -1,0 +1,8 @@
+pandas
+requests
+mysql-connector-python
+pymysql
+curl-cffi
+slack-sdk
+xlsxwriter
+openpyxl

@@ -42,7 +42,7 @@ def get_product(product_urls, location_data):
     batch=[]
 
     os.makedirs(f'pagesaves/pagesaves {datetime.now().strftime("%Y-%m-%d")}/pdp', exist_ok=True)
-    os.makedirs(f'pagesaves/pagesaves {datetime.now().strftime("%Y-%m-%d")}/parsed', exist_ok=True)
+    # os.makedirs(f'pagesaves/pagesaves {datetime.now().strftime("%Y-%m-%d")}/parsed', exist_ok=True)
 
     for product_url in product_urls:
         cookies = {

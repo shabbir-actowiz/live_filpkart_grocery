@@ -382,3 +382,62 @@ def fetch_failed_pincodes(cursor):
     """
     cursor.execute(query)
     return cursor.fetchall()
+
+def fetch_pending_pincodes(cursor):
+    query=f"""
+            SELECT
+                * from pincodes
+            WHERE status='pending'
+    """
+    cursor.execute(query)
+    return cursor.fetchall()
+
+def mark_pincode_as_failed(cursor, pincode):
+    query = f"""
+    UPDATE pincodes
+    SET status = 'failed'
+    WHERE pincode = %s
+    """
+    cursor.execute(query, (pincode,))
+    
+    return True
+
+def mark_pincode_as_pending(cursor, pincode):
+    query = f"""
+    UPDATE pincodes
+    SET status = 'pending'
+    WHERE pincode = %s
+    """
+    cursor.execute(query, (pincode,))
+    
+    return True
+
+def mark_failed_pincode_as_pending(cursor):
+    query = f"""
+    UPDATE pincodes
+    SET status = 'pending'
+    WHERE status ='failed'
+    """
+    cursor.execute(query)
+    
+    return True
+
+def mark_pincode_as_done(cursor, pincode):
+    query = f"""
+    UPDATE pincodes
+    SET status = 'done'
+    WHERE pincode = %s
+    """
+    cursor.execute(query, (pincode,))
+    
+    return True
+
+def mark_failed_master_rows_as_pending(cursor):
+    query = f"""
+    UPDATE {master_table_name}
+    SET scraping_status = 'pending'
+    WHERE scraping_status = 'failed'
+    """
+    cursor.execute(query)
+    
+    return True
